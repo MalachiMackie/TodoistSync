@@ -18,9 +18,15 @@ namespace TodoistSync
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+                .ConfigureAppConfiguration(ConfigureApplication)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
                 });
+
+        private static void ConfigureApplication(HostBuilderContext ctx, IConfigurationBuilder builder)
+        {
+            builder.AddSystemsManager("/Mackie/TodoistSync");
+        }
     }
 }
