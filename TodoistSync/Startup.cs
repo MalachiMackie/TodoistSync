@@ -1,8 +1,10 @@
+using System;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Serialization;
 using TodoistSync.Services;
 
@@ -22,17 +24,26 @@ namespace TodoistSync
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers().AddNewtonsoftJson(opts =>
+            {
+                opts.SerializerSettings.Converters.Add(new StringEnumConverter());
                 opts.SerializerSettings.ContractResolver = new DefaultContractResolver
                 {
                     NamingStrategy = new SnakeCaseNamingStrategy()
-                });
+                };
+            });
             
             services.Configure<TodoistConfig>(Configuration);
 
             services.AddHttpClient<IProjectService, ProjectService>(client =>
             {
                 client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Configuration.GetValue<string>("ApiKey")}");
-                //client.BaseAddress = new Uri("https://api.todoist.com/sync/v8");
+                client.BaseAddress = new Uri("https://api.todoist.com/sync/v8/");
+            });
+
+            services.AddHttpClient<ITemplateService, TemplateService>(client =>
+            {
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Configuration.GetValue<string>("ApiKey")}");
+                client.BaseAddress = new Uri("https://api.todoist.com/sync/v8/");
             });
                 
         }

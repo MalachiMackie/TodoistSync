@@ -3,7 +3,9 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using TodoistSync.Models.Responses;
+using Newtonsoft.Json.Linq;
+using TodoistSync.Helpers;
+using TodoistSync.Models;
 
 namespace TodoistSync.Services
 {
@@ -13,7 +15,7 @@ namespace TodoistSync.Services
         
         private TodoistConfig TodoistConfig { get; }
 
-        private string[] ResourceTypes { get; } = {"projects"}; 
+        private IEnumerable<ResourceType> ResourceTypes { get; } = new []{ResourceType.projects}; 
 
         public ProjectService(HttpClient httpClient, IOptions<TodoistConfig> todoistConfig)
         {
@@ -21,40 +23,36 @@ namespace TodoistSync.Services
             HttpClient = httpClient;
         }
 
-        public async Task<ProjectCollectionResponse> GetProjectAsync(int projectId)
+        public async Task<Project> GetProjectAsync(long projectId)
         {
-            var pairs = new[]
+            var content = HttpHelpers.BuildTodoistContent(TodoistConfig, ResourceTypes, new []
             {
-                new KeyValuePair<string, string>("resource_types", JsonConvert.SerializeObject(ResourceTypes)),
-                new KeyValuePair<string, string>("sync_token", "*"),
-                new KeyValuePair<string, string>("token", TodoistConfig.ApiKey)
-            };
-            var content = new FormUrlEncodedContent(pairs);
+                KeyValuePair.Create("project_id", projectId.ToString()), 
+            });
 
-            var response = await HttpClient.PostAsync("https://api.todoist.com/sync/v8/sync", content);
+            var response = await HttpClient.PostAsync("projects/get", content);
 
-            var projects = JsonConvert.DeserializeObject<ProjectCollectionResponse>(
-                await response.Content.ReadAsStringAsync());
+            response.EnsureSuccessStatusCode();
 
-            return projects;
+            string json = await response.Content.ReadAsStringAsync();
+            
+            var jObject = JsonConvert.DeserializeObject<JObject>(json);
+            return jObject.GetValue("project").ToObject<Project>();
         }
 
-        public async Task<ProjectCollectionResponse> GetAllProjectsAsync()
+        public async Task<IEnumerable<Project>> GetAllProjectsAsync()
         {
-            var pairs = new[]
-            {
-                new KeyValuePair<string, string>("resource_types", JsonConvert.SerializeObject(ResourceTypes)),
-                new KeyValuePair<string, string>("sync_token", "*"),
-                new KeyValuePair<string, string>("token", TodoistConfig.ApiKey)
-            };
-            var content = new FormUrlEncodedContent(pairs);
+            var content = HttpHelpers.BuildTodoistContent(TodoistConfig, ResourceTypes);
 
-            var response = await HttpClient.PostAsync("https://api.todoist.com/sync/v8/sync", content);
+            var response = await HttpClient.PostAsync("sync", content);
 
-            var projects = JsonConvert.DeserializeObject<ProjectCollectionResponse>(
-                await response.Content.ReadAsStringAsync());
+            response.EnsureSuccessStatusCode();
 
-            return projects;
+            string json = await response.Content.ReadAsStringAsync();
+            
+            var jObject = JsonConvert.DeserializeObject<JObject>(json);
+            
+            return jObject.GetValue("projects").ToObject<IEnumerable<Project>>();
         }
     }
 }
