@@ -8,6 +8,8 @@ namespace TodoistSync.Services
     {
         public Task<Project> GetProjectAsync(long projectId);
 
+        public Task<long> CreateProject(ProjectSettings projectSettings);
+
         /// <summary>
         /// Gets all the projects from todoist
         /// </summary>
