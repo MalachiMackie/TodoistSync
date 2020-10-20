@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,46 @@ namespace TodoistSync.Services
             
             var jObject = JsonConvert.DeserializeObject<JObject>(json);
             return jObject.GetValue("project").ToObject<Project>();
+        }
+
+        public async Task<long> CreateProject(ProjectSettings projectSettings)
+        {
+            string tempId = Guid.NewGuid().ToString();
+            string uuid = Guid.NewGuid().ToString();
+            var commands = new[]
+            {
+                new
+                {
+                    uuid,
+                    temp_id = tempId,
+                    type = "project_add",
+                    args = new
+                    {
+                        name = projectSettings.Name,
+                        color = projectSettings.Color,
+                        parent_id = projectSettings.ParentId
+                    }
+                }
+            };
+            
+            var content = HttpHelpers.BuildTodoistContent(TodoistConfig, contentValues: new[]
+            {
+                new KeyValuePair<string, string>("commands", JsonConvert.SerializeObject(commands)), 
+            });
+
+            var response = await HttpClient.PostAsync("sync", content);
+
+            response.EnsureSuccessStatusCode();
+
+            string json = await response.Content.ReadAsStringAsync();
+            JObject jObject = JsonConvert.DeserializeObject<JObject>(json);
+            var syncStatus = jObject.GetValue("sync_status")[uuid].Value<string>();
+
+            if (syncStatus == "ok")
+            {
+                return jObject.GetValue("temp_id_mapping")[tempId].Value<long>();
+            }
+            throw new InvalidOperationException($"Something went wrong. Status {uuid} : {syncStatus}. Temp Id {tempId}");
         }
 
         public async Task<IEnumerable<Project>> GetAllProjectsAsync()

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
+using System.Text;
 using System.Threading.Tasks;
-using System.Xml;
 using Microsoft.AspNetCore.Mvc;
 using TodoistSync.Models;
 using TodoistSync.Services;
@@ -37,6 +37,32 @@ namespace TodoistSync.Controllers
         public async Task<ActionResult<string>> GetProjectAsTemplate(long projectId)
         {
             return Ok(await TemplateService.GetProjectAsTemplateCSV(projectId));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<long>> CreateProject([FromBody] ProjectSettings projectSettings)
+        {
+            long id = await ProjectService.CreateProject(projectSettings);
+            return CreatedAtAction(nameof(Get), id, new {projectId = id});
+        }
+
+        [HttpPut("{projectId}/from-template-csv")]
+        public async Task<ActionResult> UpdateFromTemplate([FromRoute] long projectId)
+        {
+            using StreamReader sr = new StreamReader(Request.Body, Encoding.UTF8);
+            string templateCsv = await sr.ReadToEndAsync();
+            await TemplateService.ImportTemplateIntoProject(templateCsv, projectId);
+            return Ok();
+        }
+
+        [HttpPost("from-template")]
+        public async Task<ActionResult> CreateProjectFromTemplate([FromQuery] long templateId, [FromBody] ProjectSettings projectSettings)
+        {
+            string templateCsv = await TemplateService.GetProjectAsTemplateCSV(templateId);
+            long projectId = await ProjectService.CreateProject(projectSettings);
+            await TemplateService.ImportTemplateIntoProject(templateCsv, projectId);
+                
+            return Ok();
         }
     }
 }

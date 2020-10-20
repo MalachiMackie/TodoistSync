@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using TodoistSync.Helpers;
@@ -28,6 +29,18 @@ namespace TodoistSync.Services
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadAsStringAsync();
+        }
+
+        public async Task ImportTemplateIntoProject(string templateCsv, long projectId)
+        {
+            var content = new MultipartFormDataContent
+            {
+                {new StringContent(TodoistConfig.ApiKey), "token"},
+                {new StringContent(projectId.ToString()), "project_id"},
+                {new ByteArrayContent(Encoding.UTF8.GetBytes(templateCsv)), "file", "template.csv"}
+            };
+            var response = await Client.PostAsync("templates/import_into_project", content);
+            response.EnsureSuccessStatusCode();
         }
     }
 }
