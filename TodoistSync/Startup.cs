@@ -31,6 +31,13 @@ namespace TodoistSync
                     NamingStrategy = new SnakeCaseNamingStrategy()
                 };
             });
+
+            services.AddCors(opts => opts.AddPolicy("AllowOrigin", policyOpts =>
+            {
+                policyOpts.AllowAnyOrigin();
+                policyOpts.AllowAnyMethod();
+                policyOpts.AllowAnyHeader();
+            }));
             
             services.Configure<TodoistConfig>(Configuration);
 
@@ -55,6 +62,8 @@ namespace TodoistSync
             {
                 app.UseDeveloperExceptionPage();
             }
+            
+            app.UseCors("AllowOrigin");
 
             app.UseRouting();
 
