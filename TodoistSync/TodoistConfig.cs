@@ -1,7 +1,9 @@
+using System.Collections.Generic;
+
 namespace TodoistSync
 {
     public class TodoistConfig
     {
-        internal string ApiKey { get; set; } = string.Empty;
+        public IReadOnlyCollection<long> TemplateIds { get; set; } = new List<long>();
     }
 }

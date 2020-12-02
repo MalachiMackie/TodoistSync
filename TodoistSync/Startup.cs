@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Serialization;
+using TodoistSync.Extensions;
 using TodoistSync.Services;
 
 namespace TodoistSync
@@ -18,7 +22,7 @@ namespace TodoistSync
         {
             Configuration = configuration;
         }
-        
+
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
@@ -32,27 +36,35 @@ namespace TodoistSync
                 };
             });
 
+            JsonConvert.DefaultSettings = () => new JsonSerializerSettings
+            {
+                Converters = new JsonConverter[] {new StringEnumConverter()},
+                ContractResolver = new DefaultContractResolver
+                {
+                    NamingStrategy = new SnakeCaseNamingStrategy()
+                }
+            };
+
             services.AddCors(opts => opts.AddPolicy("AllowOrigin", policyOpts =>
             {
                 policyOpts.AllowAnyOrigin();
                 policyOpts.AllowAnyMethod();
                 policyOpts.AllowAnyHeader();
             }));
-            
-            services.Configure<TodoistConfig>(Configuration);
 
-            services.AddHttpClient<IProjectService, ProjectService>(client =>
+            services.Configure<TodoistConfig>(todoistConfig =>
             {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Configuration.GetValue<string>("ApiKey")}");
-                client.BaseAddress = new Uri("https://api.todoist.com/sync/v8/");
+                string templateIdsJson = Configuration.GetValue<string>("TemplateIds");
+                todoistConfig.TemplateIds = JsonConvert.DeserializeObject<List<long>>(templateIdsJson);
             });
 
-            services.AddHttpClient<ITemplateService, TemplateService>(client =>
-            {
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Configuration.GetValue<string>("ApiKey")}");
-                client.BaseAddress = new Uri("https://api.todoist.com/sync/v8/");
-            });
-                
+            services.AddTodoistHttpClient<ISectionService, SectionService>(Configuration);
+            services.AddTodoistHttpClient<IProjectService, ProjectService>(Configuration);
+            services.AddTodoistHttpClient<IItemService, ItemService>(Configuration);
+            services.AddTodoistHttpClient<ICommentsService, CommentsService>(Configuration);
+
+            services.AddTransient<IWebhookService, WebhookService>();
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -62,7 +74,7 @@ namespace TodoistSync
             {
                 app.UseDeveloperExceptionPage();
             }
-            
+
             app.UseCors("AllowOrigin");
 
             app.UseRouting();

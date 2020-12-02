@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+// ReSharper disable ClassNeverInstantiated.Global
 
 namespace TodoistSync
 {
@@ -16,12 +12,12 @@ namespace TodoistSync
             CreateHostBuilder(args).Build().Run();
         }
 
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
+        private static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration(ConfigureApplication)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    webBuilder.UseUrls("https://0.0.0.0:5001", "http://0.0.0.0:5000");
+                    webBuilder.UseUrls("http://0.0.0.0:5000");
                     webBuilder.UseStartup<Startup>();
                 });
 
