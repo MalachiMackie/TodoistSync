@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using TodoistSync.Models;
 using TodoistSync.Services;
 
@@ -13,14 +15,28 @@ namespace TodoistSync.Controllers
     public class ProjectsController : ControllerBase
     {
         private IProjectService ProjectService { get; }
-        private ITemplateService TemplateService { get; }
 
-        public ProjectsController(IProjectService projectService, ITemplateService templateService)
+        private ICommentsService CommentsService { get; }
+
+        private IItemService ItemService { get; }
+
+        private ISectionService SectionService { get; }
+
+        private TodoistConfig TodoistConfig { get; }
+
+        public ProjectsController(IProjectService projectService,
+            ICommentsService commentsService,
+            IItemService itemService,
+            ISectionService sectionService,
+            IOptions<TodoistConfig> todoistConfig)
         {
             ProjectService = projectService;
-            TemplateService = templateService;
+            CommentsService = commentsService;
+            ItemService = itemService;
+            SectionService = sectionService;
+            TodoistConfig = todoistConfig.Value;
         }
-        
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Project>>> Get()
         {
@@ -33,36 +49,25 @@ namespace TodoistSync.Controllers
             return Ok(await ProjectService.GetProjectAsync(projectId));
         }
 
-        [HttpGet("{projectId}/as-template")]
-        public async Task<ActionResult<string>> GetProjectAsTemplate(long projectId)
-        {
-            return Ok(await TemplateService.GetProjectAsTemplateCSV(projectId));
-        }
-
         [HttpPost]
         public async Task<ActionResult<long>> CreateProject([FromBody] ProjectSettings projectSettings)
         {
-            long id = await ProjectService.CreateProject(projectSettings);
-            return CreatedAtAction(nameof(Get), id, new {projectId = id});
-        }
+            var projectId = await ProjectService.CreateProject(projectSettings);
+            if (projectSettings.FromTemplateId.HasValue && TodoistConfig.TemplateIds.Contains(projectSettings.FromTemplateId.Value))
+            {
+                var templateId = projectSettings.FromTemplateId.Value;
+                await CommentsService.CreateComment(new Comment($"TemplateId:{templateId}", projectId));
+                var templateItems = await ItemService.GetItemsInProject(templateId);
+                var sections = await SectionService.GetSectionsAsync(templateId);
+                var firstSection = sections.First();
+                var firstSectionItems = templateItems.Where(x => x.SectionId == firstSection.Id)
+                    .Select(x =>
+                        x with {SectionId = null, ProjectId = projectId, DueDatetime = x.Due?.Datetime, DueDate =
+                            (x.Due?.Datetime == null) ? x.Due?.Date : null}).ToList();
+                await ItemService.PostItems(firstSectionItems);
+            }
 
-        [HttpPut("{projectId}/from-template-csv")]
-        public async Task<ActionResult> UpdateFromTemplate([FromRoute] long projectId)
-        {
-            using StreamReader sr = new StreamReader(Request.Body, Encoding.UTF8);
-            string templateCsv = await sr.ReadToEndAsync();
-            await TemplateService.ImportTemplateIntoProject(templateCsv, projectId);
-            return Ok();
-        }
-
-        [HttpPost("from-template")]
-        public async Task<ActionResult> CreateProjectFromTemplate([FromQuery] long templateId, [FromBody] ProjectSettings projectSettings)
-        {
-            string templateCsv = await TemplateService.GetProjectAsTemplateCSV(templateId);
-            long projectId = await ProjectService.CreateProject(projectSettings);
-            await TemplateService.ImportTemplateIntoProject(templateCsv, projectId);
-                
-            return Ok();
+            return CreatedAtAction(nameof(Get), projectId, new {projectId});
         }
     }
 }
