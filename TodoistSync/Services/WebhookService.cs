@@ -8,7 +8,12 @@ using Newtonsoft.Json.Linq;
 
 namespace TodoistSync.Services
 {
-    public record WebhookRequest(string EventName, JObject EventData);
+    public class WebhookRequest
+    {
+        public string EventName { get; set; } = string.Empty;
+
+        public JObject EventData { get; set; } = null!;
+    }
 
     public interface IWebhookService
     {
@@ -17,15 +22,12 @@ namespace TodoistSync.Services
 
     public class WebhookService : IWebhookService
     {
-        public WebhookService(IItemService itemService, IOptions<TodoistConfig> todoistConfig, ISectionService sectionService, ICommentsService commentsService)
+        public WebhookService(IItemService itemService, ISectionService sectionService, ICommentsService commentsService)
         {
             ItemService = itemService;
             SectionService = sectionService;
             CommentsService = commentsService;
-            TodoistConfig = todoistConfig.Value;
         }
-
-        private TodoistConfig TodoistConfig { get; }
 
         private IItemService ItemService { get; }
 
@@ -42,7 +44,8 @@ namespace TodoistSync.Services
 
             var task = request.EventName switch
             {
-                "item:completed" or "item:deleted" => ItemCompleted(item),
+                "item:completed" => ItemCompleted(item),
+                "item:deleted" => ItemCompleted(item),
                 "item:added" => ItemAdded(item), // add labels of current tasks to new task
                 _ => throw new InvalidOperationException($"{request.EventName} is not an accepted event name.")
             };
@@ -56,16 +59,19 @@ namespace TodoistSync.Services
             var existingItem = items.FirstOrDefault(x => x.Id != item.Id);
             if (existingItem != null)
             {
-                await ItemService.UpdateItem(item with{LabelIds = existingItem.LabelIds});
+                item.LabelIds = existingItem.LabelIds;
+                await ItemService.UpdateItem(item);
             }
         }
 
         private async Task ItemCompleted(Item item)
         {
             var comments = await CommentsService.GetCommentsAsync(item.ProjectId);
-            var templateId =
-                TodoistConfig.TemplateIds.SingleOrDefault(x => comments.Any(y => y.Content == $"TemplateId:{x}"));
-            if (templateId == default)
+
+            var templateIdComment = comments.SingleOrDefault(x => x.Content.Contains("TemplateId:"));
+
+            var templateIdString = templateIdComment?.Content.Split(":").Last();
+            if (templateIdString == null || !long.TryParse(templateIdString, out var templateId) || templateId == default)
             {
                 return;
             }
@@ -106,12 +112,17 @@ namespace TodoistSync.Services
                 return;
             }
 
-            var nextItems = allItems.Where(x => x.SectionId == nextSection.Id);
+            var nextItems = allItems.Where(x => x.SectionId == nextSection.Id).ToList();
 
-            var newItems = nextItems.Select(x => x with {SectionId = null, ProjectId = completedItem.ProjectId, DueDatetime =
-                x.Due?.Datetime, DueDate =
-                (x.Due?.Datetime == null) ? x.Due?.Date : null}).ToList();
-            await ItemService.PostItems(newItems);
+            foreach (var nextItem in nextItems)
+            {
+                nextItem.SectionId = null;
+                nextItem.ProjectId = completedItem.ProjectId;
+                nextItem.DueDateTime = nextItem.Due?.Datetime;
+                nextItem.DueDate = nextItem.Due?.Datetime == null ? nextItem.Due?.Date : null;
+            }
+
+            await ItemService.PostItems(nextItems);
         }
     }
 }

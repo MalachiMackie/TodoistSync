@@ -9,7 +9,18 @@ using TodoistSync.Models;
 
 namespace TodoistSync.Services
 {
-    public record Project(long Id, string Name, long? ParentId, IEnumerable<Section> Sections, IEnumerable<Item> Items);
+    public class Project
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public long? ParentId { get; set; }
+
+        public IEnumerable<Section> Sections { get; set; } = new List<Section>();
+
+        public IEnumerable<Item> Items { get; set; } = new List<Item>();
+    }
 
     public interface IProjectService
     {
@@ -24,11 +35,8 @@ namespace TodoistSync.Services
     {
         private HttpClient HttpClient { get; }
 
-        private TodoistConfig TodoistConfig { get; }
-
-        public ProjectService(HttpClient httpClient, IOptions<TodoistConfig> todoistConfig)
+        public ProjectService(HttpClient httpClient)
         {
-            TodoistConfig = todoistConfig.Value;
             HttpClient = httpClient;
         }
 

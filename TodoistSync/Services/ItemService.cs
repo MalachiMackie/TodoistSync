@@ -8,9 +8,35 @@ using Newtonsoft.Json;
 namespace TodoistSync.Services
 {
 
-    public record ItemDue(DateTime? Datetime, string Date);
+    public class ItemDue
+    {
+        public DateTime? Datetime { get; set; }
 
-    public record Item(long Id, long ProjectId, string Content, long? SectionId, ItemDue? Due, DateTime? DueDatetime, string? DueDate, long Order, long ParentId, IEnumerable<long>? LabelIds);
+        public string Date { get; set; } = string.Empty;
+    }
+
+    public class Item
+    {
+        public long Id { get; set; }
+
+        public long ProjectId { get; set; }
+
+        public string Content { get; set; } = string.Empty;
+
+        public long? SectionId { get; set; }
+
+        public ItemDue? Due { get; set; }
+
+        public DateTime? DueDateTime { get; set; }
+
+        public string? DueDate { get; set; }
+
+        public long Order { get; set; }
+
+        public long ParentId { get; set; }
+
+        public IEnumerable<long>? LabelIds { get; set; }
+    }
 
     public interface IItemService
     {

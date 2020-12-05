@@ -1,10 +1,7 @@
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using TodoistSync.Models;
 using TodoistSync.Services;
 
@@ -22,19 +19,15 @@ namespace TodoistSync.Controllers
 
         private ISectionService SectionService { get; }
 
-        private TodoistConfig TodoistConfig { get; }
-
         public ProjectsController(IProjectService projectService,
             ICommentsService commentsService,
             IItemService itemService,
-            ISectionService sectionService,
-            IOptions<TodoistConfig> todoistConfig)
+            ISectionService sectionService)
         {
             ProjectService = projectService;
             CommentsService = commentsService;
             ItemService = itemService;
             SectionService = sectionService;
-            TodoistConfig = todoistConfig.Value;
         }
 
         [HttpGet]
@@ -53,17 +46,23 @@ namespace TodoistSync.Controllers
         public async Task<ActionResult<long>> CreateProject([FromBody] ProjectSettings projectSettings)
         {
             var projectId = await ProjectService.CreateProject(projectSettings);
-            if (projectSettings.FromTemplateId.HasValue && TodoistConfig.TemplateIds.Contains(projectSettings.FromTemplateId.Value))
+            if (projectSettings.FromTemplateId.HasValue)
             {
                 var templateId = projectSettings.FromTemplateId.Value;
-                await CommentsService.CreateComment(new Comment($"TemplateId:{templateId}", projectId));
+                await CommentsService.CreateComment(new Comment{Content = $"TemplateId:{templateId}", ProjectId = projectId});
                 var templateItems = await ItemService.GetItemsInProject(templateId);
                 var sections = await SectionService.GetSectionsAsync(templateId);
                 var firstSection = sections.First();
                 var firstSectionItems = templateItems.Where(x => x.SectionId == firstSection.Id)
-                    .Select(x =>
-                        x with {SectionId = null, ProjectId = projectId, DueDatetime = x.Due?.Datetime, DueDate =
-                            (x.Due?.Datetime == null) ? x.Due?.Date : null}).ToList();
+                    .ToList();
+
+                firstSectionItems.ForEach(x =>
+                    {
+                        x.SectionId = null;
+                        x.ProjectId = projectId;
+                        x.DueDateTime = x.Due?.Datetime;
+                        x.DueDate = x.Due?.Datetime == null ? x.Due?.Date : null;
+                    });
                 await ItemService.PostItems(firstSectionItems);
             }
 

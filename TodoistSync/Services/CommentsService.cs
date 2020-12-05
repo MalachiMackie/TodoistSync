@@ -7,7 +7,16 @@ using Newtonsoft.Json;
 
 namespace TodoistSync.Services
 {
-    public record Comment(string Content, long? ProjectId = null, long? TaskId = null, long? Id = null);
+    public class Comment
+    {
+        public string Content { get; set; } = string.Empty;
+
+        public long? ProjectId { get; set; }
+
+        public long? TaskId { get; set; }
+
+        public long? Id { get; set; }
+    }
 
     public interface ICommentsService
     {

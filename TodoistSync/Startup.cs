@@ -52,12 +52,6 @@ namespace TodoistSync
                 policyOpts.AllowAnyHeader();
             }));
 
-            services.Configure<TodoistConfig>(todoistConfig =>
-            {
-                string templateIdsJson = Configuration.GetValue<string>("TemplateIds");
-                todoistConfig.TemplateIds = JsonConvert.DeserializeObject<List<long>>(templateIdsJson);
-            });
-
             services.AddTodoistHttpClient<ISectionService, SectionService>(Configuration);
             services.AddTodoistHttpClient<IProjectService, ProjectService>(Configuration);
             services.AddTodoistHttpClient<IItemService, ItemService>(Configuration);
