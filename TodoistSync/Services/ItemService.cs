@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -33,9 +34,11 @@ namespace TodoistSync.Services
 
         public long Order { get; set; }
 
-        public long ParentId { get; set; }
+        public long? ParentId { get; set; }
 
         public IEnumerable<long>? LabelIds { get; set; }
+
+        public string UniqueId { get; set; }
     }
 
     public interface IItemService
@@ -72,15 +75,26 @@ namespace TodoistSync.Services
 
         public async Task PostItems(IReadOnlyCollection<Item> items)
         {
-            var responses = new List<HttpResponseMessage>();
-            foreach (var item in items)
-            {
-                var content = new StringContent(JsonConvert.SerializeObject(item), Encoding.UTF8, "application/json");
-                var response = await HttpClient.PostAsync("tasks", content);
-                responses.Add(response);
-            }
+            var itemTasks = items
+                .Select(item =>
+                {
+                    var content = new StringContent(JsonConvert.SerializeObject(item), Encoding.UTF8,
+                        "application/json");
+                    var requestMessage = new HttpRequestMessage(HttpMethod.Post, "tasks")
+                    {
+                        Content = content
+                    };
+                    requestMessage.Headers.Add("X-Request-Id", item.UniqueId);
+                    return requestMessage;
+                })
+                .Select(requestMessage => HttpClient.SendAsync(requestMessage))
+                .ToList();
 
-            responses.ForEach(r => r.EnsureSuccessStatusCode());
+            var responseMessages = await Task.WhenAll(itemTasks);
+            foreach (var httpResponseMessage in responseMessages)
+            {
+                httpResponseMessage.EnsureSuccessStatusCode();
+            }
         }
     }
 }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -66,9 +65,11 @@ namespace TodoistSync.Services
 
         private async Task ItemCompleted(Item item)
         {
-            var comments = await CommentsService.GetCommentsAsync(item.ProjectId);
+            var commentsTask = CommentsService.GetCommentsAsync(item.ProjectId);
+            var projectItemsTask = ItemService.GetItemsInProject(item.ProjectId);
+            await Task.WhenAll(commentsTask, projectItemsTask);
 
-            var templateIdComment = comments.SingleOrDefault(x => x.Content.Contains("TemplateId:"));
+            var templateIdComment = commentsTask.Result.SingleOrDefault(x => x.Content.Contains("TemplateId:"));
 
             var templateIdString = templateIdComment?.Content.Split(":").Last();
             if (templateIdString == null || !long.TryParse(templateIdString, out var templateId) || templateId == default)
@@ -76,16 +77,14 @@ namespace TodoistSync.Services
                 return;
             }
 
-            var items = await ItemService.GetItemsInProject(item.ProjectId);
-            if (!items.Any())
+            if (!projectItemsTask.Result.Any())
             {
                 await InvokeNextTemplateSection(templateId, item);
             }
         }
 
-        private async Task<Section?> GetNextSection(long projectId, Item completedItem, IReadOnlyCollection<Item> templateItems)
+        private static Section? GetNextSection(IReadOnlyCollection<Item> templateItems, IReadOnlyCollection<Section> templateSections)
         {
-            var templateSections = await SectionService.GetSectionsAsync(projectId);
             using var enumerator = templateSections.GetEnumerator();
             while (enumerator.MoveNext())
             {
@@ -103,16 +102,19 @@ namespace TodoistSync.Services
 
         private async Task InvokeNextTemplateSection(long templateId, Item completedItem)
         {
-            var allItems = await ItemService.GetItemsInProject(templateId);
+            var templateItemsTask = ItemService.GetItemsInProject(templateId);
+            var templateSectionsTask = SectionService.GetSectionsAsync(templateId);
 
-            var nextSection = await GetNextSection(templateId, completedItem, allItems);
+            await Task.WhenAll(templateItemsTask, templateSectionsTask);
+
+            var nextSection = GetNextSection(templateItemsTask.Result, templateSectionsTask.Result);
 
             if (nextSection == null)
             {
                 return;
             }
 
-            var nextItems = allItems.Where(x => x.SectionId == nextSection.Id).ToList();
+            var nextItems = templateItemsTask.Result.Where(x => x.SectionId == nextSection.Id).ToList();
 
             foreach (var nextItem in nextItems)
             {
@@ -120,6 +122,7 @@ namespace TodoistSync.Services
                 nextItem.ProjectId = completedItem.ProjectId;
                 nextItem.DueDateTime = nextItem.Due?.Datetime;
                 nextItem.DueDate = nextItem.Due?.Datetime == null ? nextItem.Due?.Date : null;
+                nextItem.UniqueId = $"{completedItem.ProjectId}{nextItem.Id}".GetHashCode().ToString();
             }
 
             await ItemService.PostItems(nextItems);

@@ -62,6 +62,7 @@ namespace TodoistSync.Controllers
                         x.ProjectId = projectId;
                         x.DueDateTime = x.Due?.Datetime;
                         x.DueDate = x.Due?.Datetime == null ? x.Due?.Date : null;
+                        x.UniqueId = $"{projectId}{x.Id}".GetHashCode().ToString();
                     });
                 await ItemService.PostItems(firstSectionItems);
             }

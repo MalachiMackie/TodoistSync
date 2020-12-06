@@ -8,7 +8,13 @@ namespace TodoistSync
     {
         protected override void Init(IHostBuilder builder)
         {
-            builder.ConfigureWebHostDefaults(webHostBuilder => webHostBuilder.UseStartup<Startup>());
+            builder.ConfigureWebHostDefaults(webHostBuilder => webHostBuilder.UseStartup<Startup>())
+                .ConfigureAppConfiguration(ConfigureApplication);
+        }
+
+        private static void ConfigureApplication(HostBuilderContext ctx, IConfigurationBuilder builder)
+        {
+            builder.AddSystemsManager("/Mackie/TodoistSync");
         }
     }
 }
